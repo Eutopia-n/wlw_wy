@@ -61,6 +61,7 @@
     tickets: [],
     selectedId: "",
     activeFilter: "all",
+    hiddenTicketIds: loadHiddenTicketIds(),
     mqttClient: null,
     connected: false,
     toastTimer: null,
@@ -214,6 +215,38 @@
     } catch (error) {
       console.warn("演示数据保存失败", error);
     }
+  }
+
+  function loadHiddenTicketIds() {
+    try {
+      const stored = JSON.parse(localStorage.getItem("ward_worker_hidden_tickets_v1") || "[]");
+      return new Set(Array.isArray(stored) ? stored : []);
+    } catch (error) {
+      console.warn("已清理工单记录读取失败", error);
+      return new Set();
+    }
+  }
+
+  function saveHiddenTicketIds() {
+    try {
+      localStorage.setItem("ward_worker_hidden_tickets_v1", JSON.stringify([...state.hiddenTicketIds]));
+    } catch (error) {
+      console.warn("已清理工单记录保存失败", error);
+    }
+  }
+
+  function activeTickets() {
+    return state.tickets.filter((ticket) => !state.hiddenTicketIds.has(ticket.ticket_id));
+  }
+
+  function releaseReopenedTickets(tickets) {
+    let changed = false;
+    tickets.forEach((ticket) => {
+      if (["pending", "accepted", "arrived"].includes(ticket.status)) {
+        changed = state.hiddenTicketIds.delete(ticket.ticket_id) || changed;
+      }
+    });
+    if (changed) saveHiddenTicketIds();
   }
 
   function formatDateTime(value) {
@@ -423,6 +456,7 @@
 
     if (topic === TOPICS.snapshot && Array.isArray(payload.tickets)) {
       state.tickets = payload.tickets.map(normalizeTicket);
+      releaseReopenedTickets(state.tickets);
       ensureSelection();
       render();
       return;
@@ -460,16 +494,19 @@
     const index = state.tickets.findIndex((item) => item.ticket_id === ticket.ticket_id);
     if (index >= 0) state.tickets[index] = ticket;
     else state.tickets.unshift(ticket);
+    releaseReopenedTickets([ticket]);
     state.selectedId = ticket.ticket_id;
   }
 
   function ensureSelection() {
-    if (!state.tickets.some((ticket) => ticket.ticket_id === state.selectedId)) {
-      state.selectedId = state.tickets[0]?.ticket_id || "";
+    const tickets = activeTickets();
+    if (!tickets.some((ticket) => ticket.ticket_id === state.selectedId)) {
+      state.selectedId = tickets[0]?.ticket_id || "";
     }
   }
 
   function matchesFilter(ticket) {
+    if (state.hiddenTicketIds.has(ticket.ticket_id)) return false;
     const staffId = state.currentStaff?.id || "";
     if (state.activeFilter === "pending") return ticket.status === "pending";
     if (state.activeFilter === "mine") return ticket.staff_id === staffId && !["resolved", "cancelled"].includes(ticket.status);
@@ -489,10 +526,11 @@
 
   function renderStats() {
     const staffId = state.currentStaff?.id || "";
-    $("#stat-pending").textContent = state.tickets.filter((ticket) => ticket.status === "pending").length;
-    $("#stat-processing").textContent = state.tickets.filter((ticket) => ["accepted", "arrived"].includes(ticket.status)).length;
-    $("#stat-mine").textContent = state.tickets.filter((ticket) => ticket.staff_id === staffId && ["accepted", "arrived", "completed"].includes(ticket.status)).length;
-    $("#stat-completed").textContent = state.tickets.filter((ticket) => ["completed", "resolved"].includes(ticket.status)).length;
+    const tickets = activeTickets();
+    $("#stat-pending").textContent = tickets.filter((ticket) => ticket.status === "pending").length;
+    $("#stat-processing").textContent = tickets.filter((ticket) => ["accepted", "arrived"].includes(ticket.status)).length;
+    $("#stat-mine").textContent = tickets.filter((ticket) => ticket.staff_id === staffId && ["accepted", "arrived", "completed"].includes(ticket.status)).length;
+    $("#stat-completed").textContent = tickets.filter((ticket) => ["completed", "resolved"].includes(ticket.status)).length;
   }
 
   function renderList() {
@@ -634,6 +672,7 @@
 
   function render() {
     if ($("#workspace").hidden) return;
+    updateCleanupButtons();
     renderStats();
     renderList();
     renderDetail();
@@ -774,11 +813,45 @@
     state.demoSequence = 6;
     state.demoPreset = 0;
     state.activeFilter = "all";
+    state.hiddenTicketIds.clear();
+    saveHiddenTicketIds();
     localStorage.removeItem("ward_worker_demo_tickets_v2");
     saveDemoTickets();
     updateFilterButtons();
     render();
     announce("演示数据已恢复。", "success");
+  }
+
+  function clearFinishedTickets() {
+    const closedStatuses = new Set(["completed", "resolved", "cancelled"]);
+    const closedTickets = state.tickets.filter(
+      (ticket) => closedStatuses.has(ticket.status) && !state.hiddenTicketIds.has(ticket.ticket_id),
+    );
+    if (!closedTickets.length) {
+      announce("当前没有可清理的已结束工单。");
+      return;
+    }
+    closedTickets.forEach((ticket) => state.hiddenTicketIds.add(ticket.ticket_id));
+    saveHiddenTicketIds();
+    ensureSelection();
+    render();
+    announce(`已从工作列表清理 ${closedTickets.length} 张工单，云端历史记录仍然保留。`, "success");
+  }
+
+  function restoreHiddenTickets() {
+    const count = state.hiddenTicketIds.size;
+    if (!count) return;
+    state.hiddenTicketIds.clear();
+    saveHiddenTicketIds();
+    ensureSelection();
+    render();
+    announce(`已恢复显示 ${count} 张工单。`, "success");
+  }
+
+  function updateCleanupButtons() {
+    const count = state.hiddenTicketIds.size;
+    $("#restore-hidden").hidden = count === 0;
+    $("#restore-hidden").textContent = count ? `恢复已清理（${count}）` : "恢复已清理";
   }
 
   function updateFilterButtons() {
@@ -799,6 +872,8 @@
     $("#connect-button").addEventListener("click", connectMqtt);
     $("#refresh-tickets").addEventListener("click", refreshTickets);
     $("#simulate-request").addEventListener("click", simulateRequest);
+    $("#clear-finished").addEventListener("click", clearFinishedTickets);
+    $("#restore-hidden").addEventListener("click", restoreHiddenTickets);
     $("#reset-demo").addEventListener("click", resetDemo);
 
     $$("[data-filter]").forEach((button) => {
