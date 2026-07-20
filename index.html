@@ -30,21 +30,13 @@
 
     <main>
       <section id="login-view" class="login-layout" aria-labelledby="login-title">
-        <div class="login-copy">
-          <p class="eyebrow">标准化床旁节点 · 工单闭环</p>
-          <h2 id="login-title">服务需求统一接收，处理过程全程留痕</h2>
-          <p>床旁按钮保证呼叫一定发出，小智补充需求内容，云端负责工单状态，服务人员在这里完成接单、到达与完成操作。</p>
-          <ol class="workflow-list">
-            <li><span>1</span>患者发起床旁呼叫</li>
-            <li><span>2</span>服务人员接单并到达</li>
-            <li><span>3</span>完成服务，等待患者确认</li>
-          </ol>
-        </div>
-
         <form id="login-form" class="panel login-card">
-          <div>
-            <p class="eyebrow">人员身份</p>
-            <h2>登录工作台</h2>
+          <div class="login-card-header">
+            <span class="login-icon" aria-hidden="true">护</span>
+            <div>
+              <p class="eyebrow">无界智护 · 服务端</p>
+              <h2 id="login-title">登录服务工作台</h2>
+            </div>
           </div>
           <label>
             服务人员编号
@@ -55,12 +47,11 @@
             </select>
           </label>
           <label>
-            四位演示 PIN
+            登录 PIN
             <input id="staff-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="请输入 PIN" required>
           </label>
-          <p class="helper">演示 PIN：护理员为 1001 / 1002，管理员为 9001。</p>
           <p id="login-error" class="form-error" role="alert"></p>
-          <button class="button primary large" type="submit">进入工作台</button>
+          <button class="button primary large" type="submit">登录并进入服务界面</button>
         </form>
       </section>
 

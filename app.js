@@ -324,6 +324,7 @@
     $("#staff-pin").value = "";
     $("#login-view").hidden = true;
     $("#workspace").hidden = false;
+    window.location.hash = "workbench";
     $("#staff-name").textContent = account.name;
     $("#staff-id").textContent = account.id;
     $("#staff-avatar").textContent = account.id === "ADMIN-001" ? "管" : account.id.slice(-2);
@@ -336,6 +337,7 @@
     state.currentStaff = null;
     $("#workspace").hidden = true;
     $("#login-view").hidden = false;
+    window.location.hash = "login";
     $("#staff-pin").focus();
     setMode("demo");
   }
