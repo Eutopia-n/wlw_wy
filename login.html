@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>无界智护 · 服务人员登录</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="login.js"></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">护</span>
+        <div><p class="eyebrow">无界智护</p><h1>病房服务人员端</h1></div>
+      </div>
+    </header>
+    <main>
+      <section class="login-layout" aria-labelledby="login-title">
+        <form id="login-form" class="panel login-card">
+          <div class="login-card-header">
+            <span class="login-icon" aria-hidden="true">护</span>
+            <div><p class="eyebrow">服务人员登录</p><h2 id="login-title">进入服务工作台</h2></div>
+          </div>
+          <label>服务人员编号
+            <select id="staff-account" required>
+              <option value="STAFF-001">STAFF-001 · 护理员01</option>
+              <option value="STAFF-002">STAFF-002 · 护理员02</option>
+              <option value="ADMIN-001">ADMIN-001 · 值班管理员</option>
+            </select>
+          </label>
+          <label>登录 PIN
+            <input id="staff-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="请输入 PIN" required>
+          </label>
+          <p id="login-error" class="form-error" role="alert"></p>
+          <button class="button primary large" type="submit">登录并进入服务界面</button>
+        </form>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # 服务人员网页端
 
-直接打开 `index.html` 即可使用离线演示模式。也可以在本目录运行一个静态服务器：
+打开 `login.html` 登录后会跳转到 `index.html` 服务工作台。直接访问 `index.html` 且没有登录会话时，也会自动跳回登录页。也可以在本目录运行一个静态服务器：
 
 ```powershell
 python -m http.server 8090

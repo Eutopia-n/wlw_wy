@@ -46,6 +46,16 @@
     reopen: "重新开放工单",
   };
 
+  function loadStaffSession() {
+    try {
+      const staff = JSON.parse(sessionStorage.getItem("ward_worker_staff") || "null");
+      if (staff && staff.id && staff.name) return staff;
+    } catch (error) {
+      console.warn("登录会话读取失败", error);
+    }
+    return null;
+  }
+
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
   const escapeHtml = (value) => String(value ?? "")
@@ -334,12 +344,8 @@
 
   function logout() {
     disconnectMqtt(false);
-    state.currentStaff = null;
-    $("#workspace").hidden = true;
-    $("#login-view").hidden = false;
-    window.location.hash = "login";
-    $("#staff-pin").focus();
-    setMode("demo");
+    sessionStorage.removeItem("ward_worker_staff");
+    window.location.replace("login.html");
   }
 
   function setMode(mode) {
@@ -865,7 +871,7 @@
   }
 
   function bindEvents() {
-    $("#login-form").addEventListener("submit", login);
+    $("#login-form")?.addEventListener("submit", login);
     $("#logout").addEventListener("click", logout);
     $("#mode-demo").addEventListener("click", () => setMode("demo"));
     $("#mode-online").addEventListener("click", () => setMode("online"));
@@ -901,6 +907,11 @@
     setInterval(update, 1000);
   }
 
+  state.currentStaff = loadStaffSession();
+  if (!state.currentStaff) {
+    window.location.replace("login.html");
+    return;
+  }
   state.tickets = loadDemoTickets();
   state.selectedId = state.tickets[0]?.ticket_id || "";
   bindEvents();
