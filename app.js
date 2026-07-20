@@ -66,7 +66,7 @@
     .replaceAll("'", "&#039;");
 
   const state = {
-    mode: "demo",
+    mode: "online",
     currentStaff: null,
     tickets: [],
     selectedId: "",
@@ -75,8 +75,6 @@
     mqttClient: null,
     connected: false,
     toastTimer: null,
-    demoSequence: 6,
-    demoPreset: 0,
     care: {
       environment: { temperature: 26.4, humidity: 58 },
       activity: { level: "light", summary: "床旁区域存在轻微活动" },
@@ -348,32 +346,17 @@
     window.location.replace("login.html");
   }
 
-  function setMode(mode) {
-    state.mode = mode === "online" ? "online" : "demo";
-    $("#mode-demo").classList.toggle("is-active", state.mode === "demo");
-    $("#mode-online").classList.toggle("is-active", state.mode === "online");
-    $("#reset-demo").hidden = state.mode !== "demo";
-
-    if (state.mode === "demo") {
-      disconnectMqtt(false);
-      state.tickets = loadDemoTickets();
-      updateConnection("demo", "离线演示");
-      $("#connection-panel").hidden = true;
-      ensureSelection();
-      render();
-      announce("已切换为离线演示模式。若现场网络异常，完整流程仍可操作。");
-    } else {
-      $("#connection-panel").hidden = false;
-      updateConnection("connecting", "等待连接");
-      render();
-    }
+  function setMode() {
+    state.mode = "online";
+    $("#connection-panel").hidden = false;
+    updateConnection("connecting", "等待云端连接");
   }
 
   function connectMqtt() {
     if (state.mode !== "online") setMode("online");
     if (!window.mqtt) {
       updateConnection("error", "MQTT 库未加载");
-      announce("在线组件未加载，请检查网络；离线演示模式不受影响。", "error");
+      announce("在线组件未加载，请检查网页资源。", "error");
       return;
     }
 
@@ -698,136 +681,15 @@
       role: state.currentStaff.role,
     };
 
-    if (state.mode === "online") {
-      if (publishJson(TOPICS.action, payload)) announce(`已提交“${ACTION_LABELS[action] || action}”，等待云端确认。`);
-      return;
+    if (publishJson(TOPICS.action, payload)) {
+      announce(`已提交“${ACTION_LABELS[action] || action}”，等待云端确认。`);
     }
-
-    applyDemoAction(ticket, payload);
-    saveDemoTickets();
-    render();
-  }
-
-  function applyDemoAction(ticket, payload) {
-    const transitions = {
-      "pending:accept": "accepted",
-      "pending:cancel": "cancelled",
-      "accepted:arrive": "arrived",
-      "accepted:cancel": "cancelled",
-      "arrived:complete": "completed",
-      "arrived:cancel": "cancelled",
-      "completed:reopen": "pending",
-      "resolved:reopen": "pending",
-      "cancelled:reopen": "pending",
-    };
-    const nextStatus = transitions[`${ticket.status}:${payload.action}`];
-    if (!nextStatus) {
-      announce("当前工单状态不允许执行该操作。", "error");
-      return;
-    }
-
-    const now = new Date().toISOString();
-    const previousStatus = ticket.status;
-    ticket.status = nextStatus;
-    ticket.updated_at = now;
-    if (payload.action === "accept") {
-      ticket.staff_id = payload.staff_id;
-      ticket.staff_name = payload.staff_name;
-      ticket.accepted_at = now;
-    } else if (payload.action === "arrive") ticket.arrived_at = now;
-    else if (payload.action === "complete") ticket.completed_at = now;
-    else if (payload.action === "cancel") ticket.cancelled_at = now;
-    else if (payload.action === "reopen") {
-      ticket.staff_id = "";
-      ticket.staff_name = "";
-      ticket.accepted_at = "";
-      ticket.arrived_at = "";
-      ticket.completed_at = "";
-      ticket.resolved_at = "";
-      ticket.cancelled_at = "";
-    }
-    ticket.events.push({
-      action: payload.action,
-      from_status: previousStatus,
-      to_status: nextStatus,
-      operator_id: payload.staff_id,
-      operator_name: payload.staff_name,
-      note: "离线演示操作",
-      created_at: now,
-    });
-    announce(`${ACTION_LABELS[payload.action]}成功，工单状态已更新。`, "success");
-  }
-
-  function simulateRequest() {
-    const presets = [
-      ["water", "患者希望协助取一杯温水", "normal"],
-      ["toilet", "患者需要如厕协助", "urgent"],
-      ["environment", "患者希望调暗床旁灯光", "normal"],
-      ["supplies", "患者需要补充纸巾", "normal"],
-      ["medicine", "患者希望服务人员协助核对药盒记录", "normal"],
-    ];
-    const [requestType, requestText, priority] = presets[state.demoPreset++ % presets.length];
-    const requestId = `WEB-DEMO-${Date.now()}`;
-    const payload = {
-      request_id: requestId,
-      device_id: "WARD-TERM-001",
-      bed_id: ["A03", "A05", "B02", "C01"][state.demoSequence % 4],
-      source: "xiaozhi",
-      request_type: requestType,
-      request_text: requestText,
-      priority,
-    };
-
-    if (state.mode === "online") {
-      if (publishJson(TOPICS.request, payload)) announce("模拟床旁请求已发布，等待云端创建工单。", "success");
-      return;
-    }
-
-    const now = new Date().toISOString();
-    const ticket = normalizeTicket({
-      ...payload,
-      ticket_id: `TDEMO${Date.now()}${String(state.demoSequence++).padStart(2, "0")}`,
-      status: "pending",
-      ai_enriched: true,
-      created_at: now,
-      updated_at: now,
-      events: [{ action: "create", from_status: "", to_status: "pending", operator_name: "床旁终端", operator_id: payload.device_id, note: "小智补充需求内容", created_at: now }],
-    });
-    state.tickets.unshift(ticket);
-    state.selectedId = ticket.ticket_id;
-    state.activeFilter = "all";
-    updateFilterButtons();
-    saveDemoTickets();
-    render();
-    announce(`${ticket.bed_id}床产生新的${requestLabel(requestType)}工单。`, "success");
   }
 
   function refreshTickets() {
-    if (state.mode === "online") {
-      if (publishJson(TOPICS.query, { status: "", bed_id: "", requester: state.currentStaff.id })) {
-        announce("已向云端请求最新工单快照。", "success");
-      }
-    } else {
-      state.tickets = loadDemoTickets();
-      ensureSelection();
-      render();
-      announce("已刷新本地演示工单。", "success");
+    if (publishJson(TOPICS.query, { status: "", bed_id: "", requester: state.currentStaff.id })) {
+      announce("已向云端请求最新工单快照。", "success");
     }
-  }
-
-  function resetDemo() {
-    state.tickets = createInitialTickets();
-    state.selectedId = state.tickets[0].ticket_id;
-    state.demoSequence = 6;
-    state.demoPreset = 0;
-    state.activeFilter = "all";
-    state.hiddenTicketIds.clear();
-    saveHiddenTicketIds();
-    localStorage.removeItem("ward_worker_demo_tickets_v2");
-    saveDemoTickets();
-    updateFilterButtons();
-    render();
-    announce("演示数据已恢复。", "success");
   }
 
   function clearFinishedTickets() {
@@ -873,16 +735,12 @@
   function bindEvents() {
     $("#login-form")?.addEventListener("submit", login);
     $("#logout").addEventListener("click", logout);
-    $("#mode-demo").addEventListener("click", () => setMode("demo"));
-    $("#mode-online").addEventListener("click", () => setMode("online"));
     $("#open-settings").addEventListener("click", () => { $("#connection-panel").hidden = false; });
     $("#close-settings").addEventListener("click", () => { $("#connection-panel").hidden = true; });
     $("#connect-button").addEventListener("click", connectMqtt);
     $("#refresh-tickets").addEventListener("click", refreshTickets);
-    $("#simulate-request").addEventListener("click", simulateRequest);
     $("#clear-finished").addEventListener("click", clearFinishedTickets);
     $("#restore-hidden").addEventListener("click", restoreHiddenTickets);
-    $("#reset-demo").addEventListener("click", resetDemo);
 
     $$("[data-filter]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -912,9 +770,10 @@
     window.location.replace("login.html");
     return;
   }
-  state.tickets = loadDemoTickets();
-  state.selectedId = state.tickets[0]?.ticket_id || "";
+  state.tickets = [];
+  state.selectedId = "";
   bindEvents();
   startClock();
   updateFilterButtons();
+  setTimeout(connectMqtt, 100);
 })();

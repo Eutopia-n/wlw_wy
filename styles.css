@@ -171,8 +171,8 @@ input:focus, select:focus { border-color: #84adff; box-shadow: 0 0 0 3px rgb(21 
 .ticket-card h3 { margin: 8px 0 5px; }
 .ticket-card p { overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .ticket-card-bottom { margin-top: 9px; color: var(--muted); font-size: 11px; }
-.demo-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
-.demo-tools .button { width: 100%; }
+.online-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.online-tools .button { width: 100%; }
 
 .status-badge, .priority-badge, .source-badge {
   display: inline-flex;
