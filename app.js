@@ -582,6 +582,11 @@
 
   function renderDetail() {
     const detail = $("#ticket-detail");
+    const openFolds = new Set(
+      [...detail.querySelectorAll("details[data-fold]")]
+        .filter((fold) => fold.open)
+        .map((fold) => fold.dataset.fold),
+    );
     const ticket = state.tickets.find((item) => item.ticket_id === state.selectedId);
     if (!ticket) {
       detail.innerHTML = `<div class="empty-state"><div><strong>请选择一张工单</strong><span>工单详情和操作记录将在这里显示</span></div></div>`;
@@ -624,7 +629,7 @@
       </div>
 
       <div class="detail-folds">
-        <details class="detail-fold">
+        <details class="detail-fold" data-fold="service">
           <summary><span>服务详情</span><small>设备、人员、时间与AI整理</small></summary>
           <div class="fold-content">
             <div class="info-row"><span>床旁设备</span><span>${escapeHtml(ticket.device_id)}</span></div>
@@ -635,7 +640,7 @@
           </div>
         </details>
 
-        <details class="detail-fold">
+        <details class="detail-fold" data-fold="bedside">
           <summary><span>床旁辅助信息</span><small>环境、活动与药盒状态</small></summary>
           <div class="fold-content">
             <div class="info-row"><span>环境数据</span><span>${temperature ?? "—"}℃ · ${humidity ?? "—"}%</span></div>
@@ -645,7 +650,7 @@
           </div>
         </details>
 
-        <details class="detail-fold">
+        <details class="detail-fold" data-fold="timeline">
           <summary><span>处理记录</span><small>${events.length}条操作记录</small></summary>
           <div class="fold-content timeline">
             ${events.length ? events.map((event) => `
@@ -665,6 +670,10 @@
           ${nextAction ? `<button id="advance-ticket" class="button primary" type="button" data-action="${nextAction.action}">${nextAction.label}</button>` : ""}
         </div>` : ""}
     `;
+
+    detail.querySelectorAll("details[data-fold]").forEach((fold) => {
+      fold.open = openFolds.has(fold.dataset.fold);
+    });
 
     $("#advance-ticket")?.addEventListener("click", (event) => performAction(event.currentTarget.dataset.action));
     $("#cancel-ticket")?.addEventListener("click", () => performAction("cancel"));
