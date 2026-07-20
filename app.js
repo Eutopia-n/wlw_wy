@@ -618,36 +618,45 @@
 
       <p class="request-quote">“${escapeHtml(ticket.request_text)}”</p>
 
-      <div class="detail-grid">
-        <section class="info-block" aria-label="服务信息">
-          <h3>服务信息</h3>
-          <div class="info-row"><span>床旁设备</span><span>${escapeHtml(ticket.device_id)}</span></div>
-          <div class="info-row"><span>处理人员</span><span>${escapeHtml(ticket.staff_name ? `${ticket.staff_name}（${ticket.staff_id}）` : "尚未分配")}</span></div>
-          <div class="info-row"><span>提出时间</span><span>${escapeHtml(formatDateTime(ticket.created_at))}</span></div>
-          <div class="info-row"><span>响应耗时</span><span>${escapeHtml(elapsedText(ticket.created_at, ticket.accepted_at))}</span></div>
-          <div class="info-row"><span>AI语义整理</span><span>${ticket.ai_enriched ? "已整理" : "本地分类/普通呼叫"}</span></div>
-        </section>
-
-        <section class="info-block" aria-label="床旁辅助信息">
-          <h3>床旁辅助信息</h3>
-          <div class="info-row"><span>环境数据</span><span>${temperature ?? "—"}℃ · ${humidity ?? "—"}%</span></div>
-          <div class="info-row"><span>床旁活动</span><span>${escapeHtml(activityLabel(state.care.activity))}</span></div>
-          <div class="info-row"><span>药盒记录</span><span>${escapeHtml(medicationText)}</span></div>
-          <div class="info-row"><span>数据用途</span><span>辅助服务与夜灯联动</span></div>
-        </section>
+      <div class="quick-state-row">
+        <span class="quick-label">下一步</span>
+        <strong>${escapeHtml(nextAction?.label || (ticket.status === "completed" ? "等待患者确认" : status.label))}</strong>
       </div>
 
-      <section class="info-block timeline-block" aria-label="工单处理记录">
-        <h3>处理记录</h3>
-        <div class="timeline">
-          ${events.length ? events.map((event) => `
-            <div class="timeline-item">
-              <time class="timeline-time">${escapeHtml(formatTime(event.created_at))}</time>
-              <span class="timeline-dot" aria-hidden="true"></span>
-              <span>${escapeHtml(eventDescription(event))}</span>
-            </div>`).join("") : `<span class="helper">暂无详细操作记录</span>`}
-        </div>
-      </section>
+      <div class="detail-folds">
+        <details class="detail-fold">
+          <summary><span>服务详情</span><small>设备、人员、时间与AI整理</small></summary>
+          <div class="fold-content">
+            <div class="info-row"><span>床旁设备</span><span>${escapeHtml(ticket.device_id)}</span></div>
+            <div class="info-row"><span>处理人员</span><span>${escapeHtml(ticket.staff_name ? `${ticket.staff_name}（${ticket.staff_id}）` : "尚未分配")}</span></div>
+            <div class="info-row"><span>提出时间</span><span>${escapeHtml(formatDateTime(ticket.created_at))}</span></div>
+            <div class="info-row"><span>响应耗时</span><span>${escapeHtml(elapsedText(ticket.created_at, ticket.accepted_at))}</span></div>
+            <div class="info-row"><span>AI语义整理</span><span>${ticket.ai_enriched ? "已整理" : "普通呼叫"}</span></div>
+          </div>
+        </details>
+
+        <details class="detail-fold">
+          <summary><span>床旁辅助信息</span><small>环境、活动与药盒状态</small></summary>
+          <div class="fold-content">
+            <div class="info-row"><span>环境数据</span><span>${temperature ?? "—"}℃ · ${humidity ?? "—"}%</span></div>
+            <div class="info-row"><span>床旁活动</span><span>${escapeHtml(activityLabel(state.care.activity))}</span></div>
+            <div class="info-row"><span>药盒记录</span><span>${escapeHtml(medicationText)}</span></div>
+            <div class="info-row"><span>数据用途</span><span>辅助服务与夜灯联动</span></div>
+          </div>
+        </details>
+
+        <details class="detail-fold">
+          <summary><span>处理记录</span><small>${events.length}条操作记录</small></summary>
+          <div class="fold-content timeline">
+            ${events.length ? events.map((event) => `
+              <div class="timeline-item">
+                <time class="timeline-time">${escapeHtml(formatTime(event.created_at))}</time>
+                <span class="timeline-dot" aria-hidden="true"></span>
+                <span>${escapeHtml(eventDescription(event))}</span>
+              </div>`).join("") : `<span class="helper">暂无详细操作记录</span>`}
+          </div>
+        </details>
+      </div>
 
       ${processHint ? `<p class="ownership-note">${escapeHtml(processHint)}</p>` : ""}
       ${(nextAction || cancelAllowed) ? `

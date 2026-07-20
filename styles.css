@@ -200,11 +200,23 @@ input:focus, select:focus { border-color: #84adff; box-shadow: 0 0 0 3px rgb(21 
 .detail-title h2 { font-size: 25px; }
 .badge-row { display: flex; flex-wrap: wrap; gap: 7px; }
 .request-quote { margin: 20px 0; padding: 16px 18px; border-left: 4px solid var(--primary); border-radius: 0 12px 12px 0; background: #f5f8ff; font-size: 18px; font-weight: 750; line-height: 1.65; }
+.quick-state-row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 0 0 16px; padding: 13px 15px; border: 1px solid #b2ddff; border-radius: 12px; color: #175cd3; background: #eff8ff; }
+.quick-state-row strong { color: #1849a9; }
+.quick-label { color: #667085; font-size: 12px; font-weight: 700; }
 .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .info-block { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
 .info-block h3 { margin-bottom: 12px; }
 .info-row { display: flex; justify-content: space-between; gap: 18px; padding: 7px 0; color: var(--muted); font-size: 13px; }
 .info-row span:last-child { color: var(--text); text-align: right; font-weight: 650; overflow-wrap: anywhere; }
+.detail-folds { display: grid; gap: 10px; }
+.detail-fold { border: 1px solid var(--line); border-radius: 13px; background: var(--surface-soft); }
+.detail-fold summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 50px; padding: 0 15px; cursor: pointer; color: #344054; font-size: 14px; font-weight: 750; list-style: none; }
+.detail-fold summary::-webkit-details-marker { display: none; }
+.detail-fold summary::after { color: var(--muted); content: "+"; font-size: 20px; font-weight: 400; }
+.detail-fold[open] summary { border-bottom: 1px solid var(--line); }
+.detail-fold[open] summary::after { content: "−"; }
+.detail-fold summary small { margin-left: auto; color: var(--muted); font-size: 11px; font-weight: 500; }
+.fold-content { padding: 8px 15px 12px; }
 .timeline-block { margin-top: 14px; }
 .timeline { display: grid; gap: 0; }
 .timeline-item { position: relative; display: grid; grid-template-columns: 72px 16px minmax(0, 1fr); gap: 8px; min-height: 48px; color: #344054; font-size: 13px; }
