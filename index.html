@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#155eef">
+  <title>无界智护 · 服务人员工作台</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="mqtt.min.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">护</span>
+        <div>
+          <p class="eyebrow">无界智护</p>
+          <h1>病房服务人员工作台</h1>
+        </div>
+      </div>
+      <div class="topbar-status">
+        <span id="connection-chip" class="connection-chip is-demo">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="connection-text">离线演示</span>
+        </span>
+        <time id="clock" aria-label="当前时间">--:--:--</time>
+      </div>
+    </header>
+
+    <main>
+      <section id="login-view" class="login-layout" aria-labelledby="login-title">
+        <div class="login-copy">
+          <p class="eyebrow">标准化床旁节点 · 工单闭环</p>
+          <h2 id="login-title">服务需求统一接收，处理过程全程留痕</h2>
+          <p>床旁按钮保证呼叫一定发出，小智补充需求内容，云端负责工单状态，服务人员在这里完成接单、到达与完成操作。</p>
+          <ol class="workflow-list">
+            <li><span>1</span>患者发起床旁呼叫</li>
+            <li><span>2</span>服务人员接单并到达</li>
+            <li><span>3</span>完成服务，等待患者确认</li>
+          </ol>
+        </div>
+
+        <form id="login-form" class="panel login-card">
+          <div>
+            <p class="eyebrow">人员身份</p>
+            <h2>登录工作台</h2>
+          </div>
+          <label>
+            服务人员编号
+            <select id="staff-account" required>
+              <option value="STAFF-001">STAFF-001 · 护理员01</option>
+              <option value="STAFF-002">STAFF-002 · 护理员02</option>
+              <option value="ADMIN-001">ADMIN-001 · 值班管理员</option>
+            </select>
+          </label>
+          <label>
+            四位演示 PIN
+            <input id="staff-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="请输入 PIN" required>
+          </label>
+          <p class="helper">演示 PIN：护理员为 1001 / 1002，管理员为 9001。</p>
+          <p id="login-error" class="form-error" role="alert"></p>
+          <button class="button primary large" type="submit">进入工作台</button>
+        </form>
+      </section>
+
+      <section id="workspace" class="workspace" hidden>
+        <section class="control-strip panel" aria-label="连接与人员信息">
+          <div class="staff-summary">
+            <span class="avatar" id="staff-avatar">01</span>
+            <div>
+              <strong id="staff-name">护理员01</strong>
+              <span id="staff-id">STAFF-001</span>
+            </div>
+          </div>
+
+          <div class="mode-switch" role="group" aria-label="数据模式">
+            <button id="mode-demo" class="mode-button is-active" type="button">离线演示</button>
+            <button id="mode-online" class="mode-button" type="button">云端在线</button>
+          </div>
+
+          <div class="header-actions">
+            <button id="open-settings" class="button secondary" type="button">连接设置</button>
+            <button id="logout" class="button ghost" type="button">退出登录</button>
+          </div>
+        </section>
+
+        <section id="connection-panel" class="panel connection-panel" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">MQTT WebSocket</p>
+              <h2>云端连接设置</h2>
+            </div>
+            <button id="close-settings" class="icon-button" type="button" aria-label="关闭连接设置">×</button>
+          </div>
+          <div class="connection-grid">
+            <label>
+              WebSocket 地址
+              <input id="broker-url" value="ws://8.148.79.98:8083/mqtt" spellcheck="false">
+            </label>
+            <label>
+              MQTT 用户名（可选）
+              <input id="mqtt-username" autocomplete="username">
+            </label>
+            <label>
+              MQTT 密码（可选）
+              <input id="mqtt-password" type="password" autocomplete="current-password">
+            </label>
+            <button id="connect-button" class="button primary" type="button">连接云端</button>
+          </div>
+          <p class="helper">网页使用 8083 WebSocket；ESP 与 Python 云端仍使用 1883。连接信息只保存在当前浏览器。</p>
+        </section>
+
+        <section class="stats-grid" aria-label="工单统计">
+          <article class="stat-card pending"><span>待接单</span><strong id="stat-pending">0</strong><small>需要尽快响应</small></article>
+          <article class="stat-card processing"><span>处理中</span><strong id="stat-processing">0</strong><small>已接单或已到达</small></article>
+          <article class="stat-card mine"><span>我的工单</span><strong id="stat-mine">0</strong><small>当前人员负责</small></article>
+          <article class="stat-card completed"><span>今日已完成</span><strong id="stat-completed">0</strong><small>含等待患者确认</small></article>
+        </section>
+
+        <section class="workbench">
+          <aside class="panel ticket-sidebar" aria-label="工单列表">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">实时队列</p>
+                <h2>服务工单</h2>
+              </div>
+              <button id="refresh-tickets" class="icon-button" type="button" aria-label="刷新工单">↻</button>
+            </div>
+
+            <div class="filter-row" role="group" aria-label="工单筛选">
+              <button class="filter-button is-active" type="button" data-filter="all">全部</button>
+              <button class="filter-button" type="button" data-filter="pending">待接单</button>
+              <button class="filter-button" type="button" data-filter="mine">我的</button>
+              <button class="filter-button" type="button" data-filter="processing">处理中</button>
+              <button class="filter-button" type="button" data-filter="finished">已完成</button>
+            </div>
+
+            <div id="ticket-list" class="ticket-list"></div>
+            <div class="demo-tools">
+              <button id="simulate-request" class="button secondary" type="button">模拟床旁呼叫</button>
+              <button id="reset-demo" class="button ghost" type="button">重置演示</button>
+            </div>
+          </aside>
+
+          <article id="ticket-detail" class="panel ticket-detail" aria-live="polite"></article>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
