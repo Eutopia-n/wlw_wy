@@ -646,7 +646,7 @@
             <div class="info-row"><span>环境数据</span><span>${temperature ?? "—"}℃ · ${humidity ?? "—"}%</span></div>
             <div class="info-row"><span>床旁活动</span><span>${escapeHtml(activityLabel(state.care.activity))}</span></div>
             <div class="info-row"><span>药盒记录</span><span>${escapeHtml(medicationText)}</span></div>
-            <div class="info-row"><span>数据用途</span><span>辅助服务与夜灯联动</span></div>
+            <div class="info-row"><span>场景调度</span><span>辅助服务与夜灯联动</span></div>
           </div>
         </details>
 
