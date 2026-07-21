@@ -580,6 +580,13 @@
     return { quiet: "床旁区域安静", light: "床旁区域存在轻微活动", active: "床旁区域活动较明显" }[activity?.level] || "暂无床旁活动数据";
   }
 
+  function recentCareRecordsForBed(bedId) {
+    return state.tickets
+      .filter((item) => item.bed_id === bedId)
+      .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+      .slice(0, 3);
+  }
+
   function renderDetail() {
     const detail = $("#ticket-detail");
     const openFolds = new Set(
@@ -602,6 +609,7 @@
     const medicationText = state.care.medication?.reminder_message
       || (state.care.medication?.is_open ? "药盒当前处于打开状态" : "暂无新的药盒操作");
     const events = [...ticket.events].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const recentCareRecords = recentCareRecordsForBed(ticket.bed_id);
 
     let processHint = "";
     if (ticket.status === "completed") processHint = "服务人员已完成处理，床旁终端将提示患者按键确认。";
@@ -659,6 +667,18 @@
                 <span class="timeline-dot" aria-hidden="true"></span>
                 <span>${escapeHtml(eventDescription(event))}</span>
               </div>`).join("") : `<span class="helper">暂无详细操作记录</span>`}
+          </div>
+        </details>
+
+        <details class="detail-fold" data-fold="recent-care">
+          <summary><span>最近三条陪护记录</span><small>同床位最近服务</small></summary>
+          <div class="fold-content recent-care-list">
+            ${recentCareRecords.length ? recentCareRecords.map((record) => `
+              <div class="recent-care-row">
+                <span class="recent-care-type">${escapeHtml(requestLabel(record.request_type))}</span>
+                <span class="recent-care-status">${escapeHtml(STATUS_META[record.status]?.label || "状态已更新")}</span>
+                <time>${escapeHtml(formatDateTime(record.updated_at || record.created_at))}</time>
+              </div>`).join("") : `<span class="helper">暂无陪护记录</span>`}
           </div>
         </details>
       </div>

@@ -18,6 +18,7 @@
 }
 
 * { box-sizing: border-box; }
+html, body, button, input { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; }
 
 body {
   min-width: 320px;
@@ -216,6 +217,13 @@ input:focus, select:focus { border-color: #84adff; box-shadow: 0 0 0 3px rgb(21 
 .detail-fold[open] summary { border-bottom: 1px solid var(--line); }
 .detail-fold[open] summary::after { content: "−"; }
 .detail-fold summary small { margin-left: auto; color: var(--muted); font-size: 11px; font-weight: 500; }
+
+.recent-care-list { display: grid; gap: 10px; }
+.recent-care-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.recent-care-row:last-child { border-bottom: 0; }
+.recent-care-type { overflow: hidden; color: #344054; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.recent-care-status { padding: 3px 8px; border-radius: 999px; color: #027a48; background: #ecfdf3; font-size: 11px; white-space: nowrap; }
+.recent-care-row time { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .fold-content { padding: 8px 15px 12px; }
 .timeline-block { margin-top: 14px; }
 .timeline { display: grid; gap: 0; }
