@@ -9,6 +9,7 @@
     snapshot: "smart_care/ticket/snapshot",
     careResult: "smart_care/result",
   };
+  const RECENT_TICKET_CACHE_MS = 10_000;
 
   const STAFF_ACCOUNTS = {
     "STAFF-001": { id: "STAFF-001", name: "护理员01", pin: "1001", role: "staff" },
@@ -75,6 +76,10 @@
     mqttClient: null,
     connected: false,
     toastTimer: null,
+    // 优先使用 dashboard 从数据库返回的最近工单；MQTT 全量快照仅作兜底。
+    recentTicketsByBed: new Map(),
+    recentTicketLoadedAt: new Map(),
+    recentTicketLoadingBeds: new Set(),
     care: {
       environment: { temperature: 26.4, humidity: 58 },
       activity: { level: "light", summary: "床旁区域存在轻微活动" },
@@ -450,6 +455,8 @@
       releaseReopenedTickets(state.tickets);
       ensureSelection();
       render();
+      const selected = state.tickets.find((ticket) => ticket.ticket_id === state.selectedId);
+      if (selected) refreshRecentTicketsForBed(selected.bed_id);
       return;
     }
 
@@ -487,6 +494,7 @@
     else state.tickets.unshift(ticket);
     releaseReopenedTickets([ticket]);
     state.selectedId = ticket.ticket_id;
+    refreshRecentTicketsForBed(ticket.bed_id);
   }
 
   function ensureSelection() {
@@ -554,6 +562,8 @@
         state.selectedId = button.dataset.ticketId;
         renderList();
         renderDetail();
+        const selected = state.tickets.find((ticket) => ticket.ticket_id === state.selectedId);
+        if (selected) refreshRecentTicketsForBed(selected.bed_id, true);
       });
     });
   }
@@ -581,10 +591,81 @@
   }
 
   function recentCareRecordsForBed(bedId) {
+    const databaseRecords = state.recentTicketsByBed.get(bedId);
+    if (Array.isArray(databaseRecords)) return databaseRecords;
     return state.tickets
       .filter((item) => item.bed_id === bedId)
       .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
       .slice(0, 3);
+  }
+
+  function normalizeRecentTicket(record) {
+    const item = record && typeof record === "object" ? record : {};
+    return {
+      ticket_id: String(item.ticket_id || ""),
+      bed_id: String(item.bed_id || ""),
+      request_type: String(item.request_type || "other").toLowerCase(),
+      category_label: String(item.category_label || ""),
+      status: String(item.status || ""),
+      status_label: String(item.status_label || ""),
+      created_at: String(item.created_at || ""),
+      updated_at: String(item.updated_at || item.history_at || ""),
+      history_at: String(item.history_at || item.updated_at || ""),
+    };
+  }
+
+  function dashboardApiBase() {
+    const configured = String(window.WARD_DASHBOARD_API_BASE || localStorage.getItem("ward_dashboard_api_base") || "")
+      .trim()
+      .replace(/\/+$/, "");
+    if (configured) return configured.endsWith("/api") ? configured : `${configured}/api`;
+
+    // 未单独配置时，按 MQTT 地址的主机自动推导家属 dashboard 服务端口。
+    const brokerUrl = $("#broker-url")?.value.trim();
+    try {
+      const broker = new URL(brokerUrl);
+      const protocol = broker.protocol === "wss:" ? "https:" : "http:";
+      return `${protocol}//${broker.hostname}:8091/api`;
+    } catch (error) {
+      return "";
+    }
+  }
+
+  async function refreshRecentTicketsForBed(bedId, force = false) {
+    const normalizedBedId = String(bedId || "").trim();
+    if (!normalizedBedId || state.mode !== "online") return;
+    if (state.recentTicketLoadingBeds.has(normalizedBedId)) return;
+    const lastLoaded = state.recentTicketLoadedAt.get(normalizedBedId) || 0;
+    if (!force && Date.now() - lastLoaded < RECENT_TICKET_CACHE_MS) return;
+
+    const apiBase = dashboardApiBase();
+    if (!apiBase) return;
+    state.recentTicketLoadingBeds.add(normalizedBedId);
+    try {
+      const response = await fetch(`${apiBase}/beds/${encodeURIComponent(normalizedBedId)}/dashboard`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      if (!Array.isArray(payload.recent_tickets)) throw new Error("dashboard 未返回 recent_tickets");
+      state.recentTicketsByBed.set(normalizedBedId, payload.recent_tickets.map(normalizeRecentTicket));
+      state.recentTicketLoadedAt.set(normalizedBedId, Date.now());
+      const selected = state.tickets.find((ticket) => ticket.ticket_id === state.selectedId);
+      if (selected?.bed_id === normalizedBedId) renderDetail();
+    } catch (error) {
+      // 保留 MQTT 快照的兜底数据，不打断服务人员当前操作。
+      console.warn("最近工单历史读取失败，将暂时使用工单快照", error);
+    } finally {
+      state.recentTicketLoadingBeds.delete(normalizedBedId);
+    }
+  }
+
+  function recentTicketLabel(record) {
+    return record.category_label || requestLabel(record.request_type);
+  }
+
+  function recentTicketStatusLabel(record) {
+    return record.status_label || STATUS_META[record.status]?.label || "状态已更新";
   }
 
   function renderDetail() {
@@ -610,6 +691,7 @@
       || (state.care.medication?.is_open ? "药盒当前处于打开状态" : "暂无新的药盒操作");
     const events = [...ticket.events].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     const recentCareRecords = recentCareRecordsForBed(ticket.bed_id);
+    refreshRecentTicketsForBed(ticket.bed_id);
 
     let processHint = "";
     if (ticket.status === "completed") processHint = "服务人员已完成处理，床旁终端将提示患者按键确认。";
@@ -671,13 +753,13 @@
         </details>
 
         <details class="detail-fold" data-fold="recent-care">
-          <summary><span>最近三条陪护记录</span><small>同床位最近服务</small></summary>
+          <summary><span>最近三条陪护记录</span><small>云端数据库历史</small></summary>
           <div class="fold-content recent-care-list">
             ${recentCareRecords.length ? recentCareRecords.map((record) => `
               <div class="recent-care-row">
-                <span class="recent-care-type">${escapeHtml(requestLabel(record.request_type))}</span>
-                <span class="recent-care-status">${escapeHtml(STATUS_META[record.status]?.label || "状态已更新")}</span>
-                <time>${escapeHtml(formatDateTime(record.updated_at || record.created_at))}</time>
+                <span class="recent-care-type">${escapeHtml(recentTicketLabel(record))}</span>
+                <span class="recent-care-status">${escapeHtml(recentTicketStatusLabel(record))}</span>
+                <time>${escapeHtml(formatDateTime(record.history_at || record.updated_at || record.created_at))}</time>
               </div>`).join("") : `<span class="helper">暂无陪护记录</span>`}
           </div>
         </details>
