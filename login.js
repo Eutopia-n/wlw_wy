@@ -16,6 +16,6 @@
       return;
     }
     sessionStorage.setItem("ward_worker_staff", JSON.stringify({ id: account.id, name: account.name, role: account.role }));
-    window.location.replace("index.html#workbench");
+    window.location.replace("index.html?v=20260723-admin-fix-2#workbench");
   });
 })();

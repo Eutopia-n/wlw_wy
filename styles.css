@@ -146,6 +146,7 @@ input:focus, select:focus { border-color: #84adff; box-shadow: 0 0 0 3px rgb(21 
 .section-heading { justify-content: space-between; gap: 16px; }
 .section-heading.compact { margin-bottom: 14px; }
 .connection-grid { display: grid; grid-template-columns: 2fr 1fr 1fr auto; align-items: end; gap: 12px; margin: 16px 0 10px; }
+#admin-token-field { grid-column: span 2; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .stat-card { position: relative; overflow: hidden; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 6px 18px rgb(16 24 40 / 4%); }

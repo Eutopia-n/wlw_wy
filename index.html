@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#155eef">
   <title>乐芯智护 · 服务人员工作台</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260723-admin-fix-2">
   <script defer src="mqtt.min.js"></script>
-  <script defer src="app.js"></script>
+  <script defer src="app.js?v=20260723-admin-fix-2"></script>
 </head>
 <body>
   <div class="page-shell">
@@ -40,12 +40,13 @@
           </div>
 
           <div class="header-actions">
+            <button id="admin-clear-finished" class="button danger" type="button" hidden>管理员清理工单</button>
             <button id="open-settings" class="button secondary" type="button">连接设置</button>
             <button id="logout" class="button ghost" type="button">退出登录</button>
           </div>
         </section>
 
-        <section id="connection-panel" class="panel connection-panel">
+        <section id="connection-panel" class="panel connection-panel" hidden>
           <div class="section-heading">
             <div>
               <p class="eyebrow">MQTT WebSocket</p>

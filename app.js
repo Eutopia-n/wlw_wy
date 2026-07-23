@@ -10,6 +10,7 @@
     careResult: "smart_care/result",
   };
   const RECENT_TICKET_CACHE_MS = 10_000;
+  const APP_VERSION = "20260723-admin-fix-2";
 
   const STAFF_ACCOUNTS = {
     "STAFF-001": { id: "STAFF-001", name: "护理员01", pin: "1001", role: "staff" },
@@ -321,6 +322,25 @@
     const chip = $("#connection-chip");
     chip.className = `connection-chip is-${status}`;
     $("#connection-text").textContent = text;
+  }
+
+  function applyCurrentStaffToView() {
+    if (!state.currentStaff) return;
+    const isAdmin = state.currentStaff.role === "admin";
+    const name = $("#staff-name");
+    const id = $("#staff-id");
+    const avatar = $("#staff-avatar");
+    const adminTokenField = $("#admin-token-field");
+    const adminTokenInput = $("#admin-api-token");
+
+    if (name) name.textContent = state.currentStaff.name;
+    if (id) id.textContent = state.currentStaff.id;
+    if (avatar) avatar.textContent = isAdmin ? "管" : state.currentStaff.id.slice(-2);
+    if (adminTokenField) adminTokenField.hidden = !isAdmin;
+    if (isAdmin && adminTokenInput) {
+      adminTokenInput.value = sessionStorage.getItem("ward_worker_admin_api_token") || "";
+    }
+    document.documentElement.dataset.appVersion = APP_VERSION;
   }
 
   function login(event) {
@@ -854,16 +874,24 @@
 
     const apiBase = dashboardApiBase();
     const tokenInput = $("#admin-api-token");
-    const token = String(tokenInput?.value || sessionStorage.getItem("ward_worker_admin_api_token") || "").trim();
+    let token = String(tokenInput?.value || sessionStorage.getItem("ward_worker_admin_api_token") || "").trim();
     if (!apiBase) {
       announce("无法确定管理接口地址，请先检查云端连接设置。", "error");
       return;
     }
     if (!token) {
-      $("#connection-panel").hidden = false;
-      tokenInput?.focus();
-      announce("请先填写与服务器 ADMIN_API_TOKEN 一致的管理员清理令牌。", "error");
-      return;
+      const connectionPanel = $("#connection-panel");
+      if (connectionPanel && tokenInput) {
+        connectionPanel.hidden = false;
+        tokenInput.focus();
+        announce("请先填写与服务器 ADMIN_API_TOKEN 一致的管理员清理令牌。", "error");
+        return;
+      }
+      token = String(window.prompt("请输入服务器 ADMIN_API_TOKEN 管理员清理令牌：") || "").trim();
+      if (!token) {
+        announce("未输入管理员清理令牌，已取消清理。", "error");
+        return;
+      }
     }
 
     sessionStorage.setItem("ward_worker_admin_api_token", token);
@@ -922,13 +950,24 @@
   function updateCleanupButtons() {
     const count = state.hiddenTicketIds.size;
     const clearButton = $("#clear-finished");
+    const adminClearButton = $("#admin-clear-finished");
     const isAdmin = state.currentStaff?.role === "admin";
-    clearButton.disabled = state.adminPurgeBusy;
-    clearButton.textContent = state.adminPurgeBusy
-      ? "正在清理…"
-      : (isAdmin ? "永久清理已结束" : "隐藏已结束");
-    $("#restore-hidden").hidden = count === 0;
-    $("#restore-hidden").textContent = count ? `恢复已清理（${count}）` : "恢复已清理";
+    if (clearButton) {
+      clearButton.disabled = state.adminPurgeBusy;
+      clearButton.textContent = state.adminPurgeBusy
+        ? "正在清理…"
+        : (isAdmin ? "永久清理已结束" : "隐藏已结束");
+    }
+    if (adminClearButton) {
+      adminClearButton.hidden = !isAdmin;
+      adminClearButton.disabled = state.adminPurgeBusy;
+      adminClearButton.textContent = state.adminPurgeBusy ? "正在清理…" : "管理员清理工单";
+    }
+    const restoreButton = $("#restore-hidden");
+    if (restoreButton) {
+      restoreButton.hidden = count === 0;
+      restoreButton.textContent = count ? `恢复已清理（${count}）` : "恢复已清理";
+    }
   }
 
   function updateFilterButtons() {
@@ -941,13 +980,23 @@
 
   function bindEvents() {
     $("#login-form")?.addEventListener("submit", login);
-    $("#logout").addEventListener("click", logout);
-    $("#open-settings").addEventListener("click", () => { $("#connection-panel").hidden = false; });
-    $("#close-settings").addEventListener("click", () => { $("#connection-panel").hidden = true; });
-    $("#connect-button").addEventListener("click", connectMqtt);
-    $("#refresh-tickets").addEventListener("click", refreshTickets);
-    $("#clear-finished").addEventListener("click", clearFinishedTickets);
-    $("#restore-hidden").addEventListener("click", restoreHiddenTickets);
+    $("#logout")?.addEventListener("click", logout);
+    $("#open-settings")?.addEventListener("click", () => {
+      const panel = $("#connection-panel");
+      if (panel) {
+        panel.hidden = false;
+        panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+    $("#close-settings")?.addEventListener("click", () => {
+      const panel = $("#connection-panel");
+      if (panel) panel.hidden = true;
+    });
+    $("#connect-button")?.addEventListener("click", connectMqtt);
+    $("#refresh-tickets")?.addEventListener("click", refreshTickets);
+    $("#clear-finished")?.addEventListener("click", clearFinishedTickets);
+    $("#admin-clear-finished")?.addEventListener("click", clearFinishedTickets);
+    $("#restore-hidden")?.addEventListener("click", restoreHiddenTickets);
 
     $$("[data-filter]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -974,17 +1023,15 @@
 
   state.currentStaff = loadStaffSession();
   if (!state.currentStaff) {
-    window.location.replace("login.html");
+    window.location.replace(`login.html?v=${APP_VERSION}`);
     return;
   }
   state.tickets = [];
   state.selectedId = "";
-  $("#admin-token-field").hidden = state.currentStaff.role !== "admin";
-  if (state.currentStaff.role === "admin") {
-    $("#admin-api-token").value = sessionStorage.getItem("ward_worker_admin_api_token") || "";
-  }
+  applyCurrentStaffToView();
   bindEvents();
   startClock();
   updateFilterButtons();
+  render();
   setTimeout(connectMqtt, 100);
 })();
