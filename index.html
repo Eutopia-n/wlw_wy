@@ -66,6 +66,10 @@
               MQTT 密码（可选）
               <input id="mqtt-password" type="password" autocomplete="current-password">
             </label>
+            <label id="admin-token-field" hidden>
+              管理员清理令牌
+              <input id="admin-api-token" type="password" autocomplete="off" placeholder="与服务器 ADMIN_API_TOKEN 一致">
+            </label>
             <button id="connect-button" class="button primary" type="button">连接云端</button>
           </div>
           <p class="helper">网页使用 8083 WebSocket；ESP 与 Python 云端仍使用 1883。连接信息只保存在当前浏览器。</p>

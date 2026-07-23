@@ -80,6 +80,7 @@
     recentTicketsByBed: new Map(),
     recentTicketLoadedAt: new Map(),
     recentTicketLoadingBeds: new Set(),
+    adminPurgeBusy: false,
     care: {
       environment: { temperature: 26.4, humidity: 58 },
       activity: { level: "light", summary: "床旁区域存在轻微活动" },
@@ -812,7 +813,31 @@
     }
   }
 
-  function clearFinishedTickets() {
+  async function postAdminPurge(apiBase, token, payload) {
+    const response = await fetch(`${apiBase}/admin/tickets/purge`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result.message || `管理员清理接口请求失败（HTTP ${response.status}）`);
+    }
+    return result;
+  }
+
+  function hideFinishedTicketsLocally(closedTickets) {
+    closedTickets.forEach((ticket) => state.hiddenTicketIds.add(ticket.ticket_id));
+    saveHiddenTicketIds();
+    ensureSelection();
+    render();
+    announce(`已在当前浏览器隐藏 ${closedTickets.length} 张工单，云端记录未删除。`, "success");
+  }
+
+  async function clearFinishedTickets() {
     const closedStatuses = new Set(["completed", "resolved", "cancelled"]);
     const closedTickets = state.tickets.filter(
       (ticket) => closedStatuses.has(ticket.status) && !state.hiddenTicketIds.has(ticket.ticket_id),
@@ -821,11 +846,67 @@
       announce("当前没有可清理的已结束工单。");
       return;
     }
-    closedTickets.forEach((ticket) => state.hiddenTicketIds.add(ticket.ticket_id));
-    saveHiddenTicketIds();
-    ensureSelection();
-    render();
-    announce(`已从工作列表清理 ${closedTickets.length} 张工单，云端历史记录仍然保留。`, "success");
+
+    if (state.currentStaff?.role !== "admin") {
+      hideFinishedTicketsLocally(closedTickets);
+      return;
+    }
+
+    const apiBase = dashboardApiBase();
+    const tokenInput = $("#admin-api-token");
+    const token = String(tokenInput?.value || sessionStorage.getItem("ward_worker_admin_api_token") || "").trim();
+    if (!apiBase) {
+      announce("无法确定管理接口地址，请先检查云端连接设置。", "error");
+      return;
+    }
+    if (!token) {
+      $("#connection-panel").hidden = false;
+      tokenInput?.focus();
+      announce("请先填写与服务器 ADMIN_API_TOKEN 一致的管理员清理令牌。", "error");
+      return;
+    }
+
+    sessionStorage.setItem("ward_worker_admin_api_token", token);
+    state.adminPurgeBusy = true;
+    updateCleanupButtons();
+    try {
+      const ticketIds = closedTickets.map((ticket) => ticket.ticket_id);
+      const commonPayload = {
+        ticket_ids: ticketIds,
+        include_completed: true,
+        limit: Math.min(ticketIds.length, 500),
+      };
+      const preview = await postAdminPurge(apiBase, token, { ...commonPayload, confirm: false });
+      if (!preview.matched_count) {
+        announce("云端没有找到可永久清理的已结束工单。", "error");
+        return;
+      }
+      const confirmed = window.confirm(
+        `将永久删除云端数据库中的 ${preview.selected_count} 张已结束工单及其处理记录。此操作不可恢复，是否继续？`,
+      );
+      if (!confirmed) {
+        announce("已取消管理员清理操作。");
+        return;
+      }
+
+      const result = await postAdminPurge(apiBase, token, { ...commonPayload, confirm: true });
+      const deletedIds = new Set((result.tickets || []).map((ticket) => String(ticket.ticket_id || "")));
+      state.tickets = state.tickets.filter((ticket) => !deletedIds.has(ticket.ticket_id));
+      deletedIds.forEach((ticketId) => state.hiddenTicketIds.delete(ticketId));
+      saveHiddenTicketIds();
+      state.recentTicketsByBed.clear();
+      state.recentTicketLoadedAt.clear();
+      ensureSelection();
+      render();
+      refreshTickets();
+      announce(result.message || `已永久清理 ${result.deleted_count} 张工单。`, "success");
+    } catch (error) {
+      console.error("管理员清理工单失败", error);
+      announce(error.message || "管理员清理工单失败。", "error");
+    } finally {
+      state.adminPurgeBusy = false;
+      updateCleanupButtons();
+    }
   }
 
   function restoreHiddenTickets() {
@@ -840,6 +921,12 @@
 
   function updateCleanupButtons() {
     const count = state.hiddenTicketIds.size;
+    const clearButton = $("#clear-finished");
+    const isAdmin = state.currentStaff?.role === "admin";
+    clearButton.disabled = state.adminPurgeBusy;
+    clearButton.textContent = state.adminPurgeBusy
+      ? "正在清理…"
+      : (isAdmin ? "永久清理已结束" : "隐藏已结束");
     $("#restore-hidden").hidden = count === 0;
     $("#restore-hidden").textContent = count ? `恢复已清理（${count}）` : "恢复已清理";
   }
@@ -892,6 +979,10 @@
   }
   state.tickets = [];
   state.selectedId = "";
+  $("#admin-token-field").hidden = state.currentStaff.role !== "admin";
+  if (state.currentStaff.role === "admin") {
+    $("#admin-api-token").value = sessionStorage.getItem("ward_worker_admin_api_token") || "";
+  }
   bindEvents();
   startClock();
   updateFilterButtons();
