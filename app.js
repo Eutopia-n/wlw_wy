@@ -10,7 +10,8 @@
     careResult: "smart_care/result",
   };
   const RECENT_TICKET_CACHE_MS = 10_000;
-  const APP_VERSION = "20260723-admin-fix-2";
+  const APP_VERSION = "20260724-selective-purge-1";
+  const CLOSED_STATUSES = new Set(["completed", "resolved", "cancelled"]);
 
   const STAFF_ACCOUNTS = {
     "STAFF-001": { id: "STAFF-001", name: "护理员01", pin: "1001", role: "staff" },
@@ -82,6 +83,8 @@
     recentTicketLoadedAt: new Map(),
     recentTicketLoadingBeds: new Set(),
     adminPurgeBusy: false,
+    cleanupSelectionMode: false,
+    selectedCleanupIds: new Set(),
     care: {
       environment: { temperature: 26.4, humidity: 58 },
       activity: { level: "light", summary: "床旁区域存在轻微活动" },
@@ -531,7 +534,7 @@
     if (state.activeFilter === "pending") return ticket.status === "pending";
     if (state.activeFilter === "mine") return ticket.staff_id === staffId && !["resolved", "cancelled"].includes(ticket.status);
     if (state.activeFilter === "processing") return ["accepted", "arrived"].includes(ticket.status);
-    if (state.activeFilter === "finished") return ["completed", "resolved"].includes(ticket.status);
+    if (state.activeFilter === "finished") return CLOSED_STATUSES.has(ticket.status);
     return true;
   }
 
@@ -563,10 +566,17 @@
 
     list.innerHTML = visible.map((ticket) => {
       const status = STATUS_META[ticket.status];
+      const cleanupSelectable = state.cleanupSelectionMode
+        && state.currentStaff?.role === "admin"
+        && CLOSED_STATUSES.has(ticket.status);
+      const cleanupSelected = state.selectedCleanupIds.has(ticket.ticket_id);
       return `
-        <button class="ticket-card ${ticket.ticket_id === state.selectedId ? "is-selected" : ""}" type="button" data-ticket-id="${escapeHtml(ticket.ticket_id)}">
+        <button class="ticket-card ${ticket.ticket_id === state.selectedId && !state.cleanupSelectionMode ? "is-selected" : ""} ${cleanupSelected ? "is-cleanup-selected" : ""}" type="button" data-ticket-id="${escapeHtml(ticket.ticket_id)}" data-cleanup-selectable="${cleanupSelectable}" ${cleanupSelectable ? `aria-pressed="${cleanupSelected}"` : ""}>
           <div class="ticket-card-top">
-            <span class="status-badge ${status.className}">${status.label}</span>
+            <span class="ticket-card-status">
+              ${cleanupSelectable ? `<span class="cleanup-check" aria-hidden="true">${cleanupSelected ? "✓" : ""}</span>` : ""}
+              <span class="status-badge ${status.className}">${status.label}</span>
+            </span>
             <span class="priority-badge priority-${ticket.priority}">${ticket.priority === "urgent" ? "紧急" : "普通"}</span>
           </div>
           <h3>${escapeHtml(ticket.bed_id)}床 · ${escapeHtml(requestLabel(ticket.request_type))}</h3>
@@ -580,6 +590,15 @@
 
     list.querySelectorAll("[data-ticket-id]").forEach((button) => {
       button.addEventListener("click", () => {
+        if (state.cleanupSelectionMode) {
+          if (button.dataset.cleanupSelectable !== "true") return;
+          const ticketId = button.dataset.ticketId;
+          if (state.selectedCleanupIds.has(ticketId)) state.selectedCleanupIds.delete(ticketId);
+          else state.selectedCleanupIds.add(ticketId);
+          renderList();
+          updateCleanupButtons();
+          return;
+        }
         state.selectedId = button.dataset.ticketId;
         renderList();
         renderDetail();
@@ -857,10 +876,41 @@
     announce(`已在当前浏览器隐藏 ${closedTickets.length} 张工单，云端记录未删除。`, "success");
   }
 
-  async function clearFinishedTickets() {
-    const closedStatuses = new Set(["completed", "resolved", "cancelled"]);
+  function enterCleanupSelectionMode() {
+    if (state.currentStaff?.role !== "admin") {
+      clearFinishedTickets();
+      return;
+    }
+    state.cleanupSelectionMode = true;
+    state.selectedCleanupIds.clear();
+    state.activeFilter = "finished";
+    updateFilterButtons();
+    render();
+    announce("请选择需要永久清理的已结束工单。");
+  }
+
+  function exitCleanupSelectionMode({ renderPage = true } = {}) {
+    state.cleanupSelectionMode = false;
+    state.selectedCleanupIds.clear();
+    if (renderPage) render();
+  }
+
+  function selectAllFinishedTickets() {
+    state.tickets.forEach((ticket) => {
+      if (CLOSED_STATUSES.has(ticket.status) && !state.hiddenTicketIds.has(ticket.ticket_id)) {
+        state.selectedCleanupIds.add(ticket.ticket_id);
+      }
+    });
+    renderList();
+    updateCleanupButtons();
+  }
+
+  async function clearFinishedTickets(selectedTicketIds = null) {
+    const selectedSet = Array.isArray(selectedTicketIds) ? new Set(selectedTicketIds) : null;
     const closedTickets = state.tickets.filter(
-      (ticket) => closedStatuses.has(ticket.status) && !state.hiddenTicketIds.has(ticket.ticket_id),
+      (ticket) => CLOSED_STATUSES.has(ticket.status)
+        && !state.hiddenTicketIds.has(ticket.ticket_id)
+        && (!selectedSet || selectedSet.has(ticket.ticket_id)),
     );
     if (!closedTickets.length) {
       announce("当前没有可清理的已结束工单。");
@@ -924,6 +974,7 @@
       saveHiddenTicketIds();
       state.recentTicketsByBed.clear();
       state.recentTicketLoadedAt.clear();
+      exitCleanupSelectionMode({ renderPage: false });
       ensureSelection();
       render();
       refreshTickets();
@@ -968,6 +1019,21 @@
       restoreButton.hidden = count === 0;
       restoreButton.textContent = count ? `恢复已清理（${count}）` : "恢复已清理";
     }
+    const selectionTools = $("#cleanup-selection-tools");
+    const selectionCount = $("#cleanup-selection-count");
+    const deleteSelected = $("#delete-selected-finished");
+    if (selectionTools) selectionTools.hidden = !isAdmin || !state.cleanupSelectionMode;
+    if (selectionCount) selectionCount.textContent = `已选择 ${state.selectedCleanupIds.size} 张`;
+    if (deleteSelected) {
+      deleteSelected.disabled = state.adminPurgeBusy || state.selectedCleanupIds.size === 0;
+      deleteSelected.textContent = state.adminPurgeBusy
+        ? "正在删除…"
+        : `删除选中（${state.selectedCleanupIds.size}）`;
+    }
+    if (isAdmin && !state.adminPurgeBusy) {
+      if (clearButton) clearButton.textContent = state.cleanupSelectionMode ? "正在选择…" : "选择清理工单";
+      if (adminClearButton) adminClearButton.textContent = state.cleanupSelectionMode ? "正在选择工单" : "选择清理工单";
+    }
   }
 
   function updateFilterButtons() {
@@ -994,12 +1060,20 @@
     });
     $("#connect-button")?.addEventListener("click", connectMqtt);
     $("#refresh-tickets")?.addEventListener("click", refreshTickets);
-    $("#clear-finished")?.addEventListener("click", clearFinishedTickets);
-    $("#admin-clear-finished")?.addEventListener("click", clearFinishedTickets);
+    $("#clear-finished")?.addEventListener("click", enterCleanupSelectionMode);
+    $("#admin-clear-finished")?.addEventListener("click", enterCleanupSelectionMode);
+    $("#select-all-finished")?.addEventListener("click", selectAllFinishedTickets);
+    $("#delete-selected-finished")?.addEventListener("click", () => {
+      clearFinishedTickets([...state.selectedCleanupIds]);
+    });
+    $("#cancel-cleanup-selection")?.addEventListener("click", () => exitCleanupSelectionMode());
     $("#restore-hidden")?.addEventListener("click", restoreHiddenTickets);
 
     $$("[data-filter]").forEach((button) => {
       button.addEventListener("click", () => {
+        if (state.cleanupSelectionMode && button.dataset.filter !== "finished") {
+          exitCleanupSelectionMode({ renderPage: false });
+        }
         state.activeFilter = button.dataset.filter;
         updateFilterButtons();
         const first = sortedVisibleTickets()[0];

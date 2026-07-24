@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#155eef">
   <title>乐芯智护 · 服务人员工作台</title>
-  <link rel="stylesheet" href="styles.css?v=20260723-admin-fix-2">
+  <link rel="stylesheet" href="styles.css?v=20260724-selective-purge-1">
   <script defer src="mqtt.min.js"></script>
-  <script defer src="app.js?v=20260723-admin-fix-2"></script>
+  <script defer src="app.js?v=20260724-selective-purge-1"></script>
 </head>
 <body>
   <div class="page-shell">
@@ -99,6 +99,15 @@
               <button class="filter-button" type="button" data-filter="mine">我的</button>
               <button class="filter-button" type="button" data-filter="processing">处理中</button>
               <button class="filter-button" type="button" data-filter="finished">已完成</button>
+            </div>
+
+            <div id="cleanup-selection-tools" class="cleanup-selection-tools" hidden>
+              <strong id="cleanup-selection-count">已选择 0 张</strong>
+              <div>
+                <button id="select-all-finished" class="button ghost compact" type="button">全选</button>
+                <button id="delete-selected-finished" class="button danger compact" type="button" disabled>删除选中（0）</button>
+                <button id="cancel-cleanup-selection" class="button ghost compact" type="button">取消</button>
+              </div>
             </div>
 
             <div id="ticket-list" class="ticket-list"></div>

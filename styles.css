@@ -165,10 +165,18 @@ input:focus, select:focus { border-color: #84adff; box-shadow: 0 0 0 3px rgb(21 
 .filter-row { display: flex; gap: 6px; padding-bottom: 12px; overflow-x: auto; }
 .filter-button { flex: 0 0 auto; padding: 7px 10px; color: var(--muted); background: #f2f4f7; font-size: 12px; }
 .filter-button.is-active { color: #fff; background: var(--primary); }
+.cleanup-selection-tools { margin-bottom: 10px; padding: 10px; border: 1px solid #fecdca; border-radius: 12px; background: #fffbfa; }
+.cleanup-selection-tools strong { display: block; margin-bottom: 8px; color: #b42318; font-size: 13px; }
+.cleanup-selection-tools > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.button.compact { min-height: 32px; padding: 5px 10px; font-size: 12px; }
 .ticket-list { display: grid; align-content: start; gap: 9px; flex: 1; max-height: 500px; overflow-y: auto; padding-right: 3px; }
 .ticket-card { width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 13px; color: inherit; background: #fff; text-align: left; }
 .ticket-card:hover { border-color: #b2ccff; background: #f8faff; }
 .ticket-card.is-selected { border-color: #84adff; background: #eff4ff; box-shadow: inset 0 0 0 1px #84adff; }
+.ticket-card.is-cleanup-selected { border-color: #f04438; background: #fff4f2; box-shadow: inset 0 0 0 1px #f04438; }
+.ticket-card-status { display: inline-flex; align-items: center; gap: 7px; }
+.cleanup-check { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 2px solid #f97066; border-radius: 6px; color: #fff; background: #fff; font-size: 14px; font-weight: 900; }
+.ticket-card.is-cleanup-selected .cleanup-check { background: #d92d20; }
 .ticket-card-top, .ticket-card-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .ticket-card h3 { margin: 8px 0 5px; }
 .ticket-card p { overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
